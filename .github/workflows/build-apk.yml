@@ -1,0 +1,39 @@
+name: Compilar APK
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar proyecto
+        run: |
+          if [ ! -f settings.gradle ]; then
+            ZIP=$(ls ./*.zip | head -n 1)
+            echo "Descomprimiendo $ZIP"
+            unzip -o -q "$ZIP" -x ".github/*"
+          fi
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Compilar APK
+        run: gradle assembleDebug --no-daemon
+      - name: Guardar APK como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Publicar APK en Releases
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk "miapp.apk"
+          gh release create "apk-${{ github.run_number }}" "miapp.apk" --title "APK ${{ github.run_number }}" --notes "Compilado con Forja APK"
